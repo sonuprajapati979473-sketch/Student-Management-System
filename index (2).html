@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Student Portal</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #3a3a3a;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .container {
+    background: #d4d4d4;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .header {
+    background: #1a1a1a;
+    color: #ffffff;
+    padding: 14px 20px;
+    font-size: 16px;
+  }
+
+  .body {
+    padding: 20px;
+    background: #d4d4d4;
+  }
+
+  .search-row {
+    display: flex;
+    margin-bottom: 16px;
+  }
+
+  .search-row input {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1.5px solid #999;
+    border-right: none;
+    background: #f0f0f0;
+    font-size: 14px;
+    color: #333;
+    outline: none;
+  }
+
+  .search-row input::placeholder { color: #888; }
+
+  .search-row button {
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    padding: 12px 36px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .search-row button:hover { background: #333; }
+
+  .sort-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .sort-btn {
+    flex: 1;
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    padding: 12px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .sort-btn:hover { background: #444; }
+  .sort-btn.active { background: #555; outline: 2px solid #fff; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #d4d4d4;
+  }
+
+  th {
+    border: 1px solid #aaa;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: normal;
+    font-size: 14px;
+    color: #111;
+    background: #d4d4d4;
+  }
+
+  td {
+    border: 1px solid #aaa;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #111;
+    background: #d4d4d4;
+    vertical-align: middle;
+  }
+
+  .name-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #aaa;
+    background: #ccc;
+    flex-shrink: 0;
+  }
+
+  .no-results {
+    padding: 20px;
+    color: #555;
+    text-align: center;
+    border: 1px solid #aaa;
+  }
+
+  .gender-label {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+
+  .gender-section + .gender-section { margin-top: 16px; }
+
+  #loading {
+    text-align: center;
+    padding: 40px;
+    color: #555;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">Student Portal</div>
+  <div class="body">
+
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Search" oninput="handleSearch()"/>
+      <button onclick="handleSearch()">Search</button>
+    </div>
+
+    <div class="sort-row">
+      <button class="sort-btn" id="btn-az"      onclick="sortBy('az')">Sort A→Z</button>
+      <button class="sort-btn" id="btn-za"      onclick="sortBy('za')">Sort Z→A</button>
+      <button class="sort-btn" id="btn-marks"   onclick="sortBy('marks')">Sort By Marks</button>
+      <button class="sort-btn" id="btn-passing" onclick="sortBy('passing')">Sort By Passing</button>
+      <button class="sort-btn" id="btn-class"   onclick="sortBy('class')">Sort By Class</button>
+      <button class="sort-btn" id="btn-gender"  onclick="sortBy('gender')">Sort By Gender</button>
+    </div>
+
+    <div id="tablesContainer"><div id="loading">Loading students...</div></div>
+
+  </div>
+</div>
+
+<script>
+const RAW_URL = "https://gist.githubusercontent.com/harsh3195/b441881e0020817b84e34d27ba448418/raw/c4fde6f42310987a54ae1bc3d9b8bfbafac15617/demo-json-data.json";
+const PROXY_URL = "https://corsproxy.io/?" + encodeURIComponent(RAW_URL);
+
+let students = [];
+let currentSort = 'default';
+let currentSearch = '';
+
+async function loadData() {
+  // Try direct first, fall back to CORS proxy
+  const urls = [RAW_URL, PROXY_URL];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      students = await res.json();
+      render();
+      return;
+    } catch (e) {
+      // try next
+    }
+  }
+  document.getElementById('tablesContainer').innerHTML =
+    `<div class="no-results">Failed to load student data. Please check your connection.</div>`;
+}
+
+function fullName(s) { return `${s.first_name} ${s.last_name}`; }
+
+function handleSearch() {
+  currentSearch = document.getElementById('searchInput').value.toLowerCase();
+  render();
+}
+
+function sortBy(type) {
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  if (currentSort === type) {
+    currentSort = 'default';
+  } else {
+    currentSort = type;
+    document.getElementById('btn-' + type).classList.add('active');
+  }
+  render();
+}
+
+function filterStudents(arr) {
+  if (!currentSearch) return arr;
+  return arr.filter(s =>
+    s.first_name.toLowerCase().includes(currentSearch) ||
+    s.last_name.toLowerCase().includes(currentSearch) ||
+    s.email.toLowerCase().includes(currentSearch)
+  );
+}
+
+function tableHTML(rows) {
+  if (!rows.length) return `<div class="no-results">No students found.</div>`;
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Gender</th>
+          <th>Class</th>
+          <th>Marks</th>
+          <th>Passing</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(s => `
+          <tr>
+            <td>${s.id}</td>
+            <td>
+              <div class="name-cell">
+                <img class="avatar" src="${s.image}" alt="${fullName(s)}" loading="lazy"/>
+                ${fullName(s)}
+              </div>
+            </td>
+            <td>${s.gender}</td>
+            <td>${s.class}</td>
+            <td>${s.marks}</td>
+            <td>${s.passing ? 'Passing' : 'Failed'}</td>
+            <td>${s.email}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function render() {
+  const container = document.getElementById('tablesContainer');
+  let data = [...students];
+
+  if (currentSort === 'az') {
+    data.sort((a, b) => fullName(a).localeCompare(fullName(b)));
+    container.innerHTML = tableHTML(filterStudents(data));
+  } else if (currentSort === 'za') {
+    data.sort((a, b) => fullName(b).localeCompare(fullName(a)));
+    container.innerHTML = tableHTML(filterStudents(data));
+  } else if (currentSort === 'marks') {
+    data.sort((a, b) => a.marks - b.marks);
+    container.innerHTML = tableHTML(filterStudents(data));
+  } else if (currentSort === 'passing') {
+    data = data.filter(s => s.passing);
+    container.innerHTML = tableHTML(filterStudents(data));
+  } else if (currentSort === 'class') {
+    data.sort((a, b) => a.class - b.class);
+    container.innerHTML = tableHTML(filterStudents(data));
+  } else if (currentSort === 'gender') {
+    const females = filterStudents(data.filter(s => s.gender === 'Female'));
+    const males   = filterStudents(data.filter(s => s.gender === 'Male'));
+    container.innerHTML = `
+      <div class="gender-section">
+        <div class="gender-label">Female</div>
+        ${tableHTML(females)}
+      </div>
+      <div class="gender-section">
+        <div class="gender-label">Male</div>
+        ${tableHTML(males)}
+      </div>`;
+  } else {
+    container.innerHTML = tableHTML(filterStudents(data));
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
